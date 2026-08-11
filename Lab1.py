@@ -31,7 +31,6 @@ from tokenizers.models import WordPiece
 from tokenizers.pre_tokenizers import Whitespace
 from tokenizers.trainers import WordPieceTrainer
 
-
 # ============================================================
 # TEXT DATASET
 # ============================================================
@@ -48,7 +47,6 @@ text_dataset = [
 
 # Combine all sentences into one text
 text = " ".join(text_dataset)
-
 
 # ============================================================
 # 1. WORD TOKENIZATION
