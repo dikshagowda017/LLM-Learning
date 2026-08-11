@@ -243,7 +243,6 @@ print("Subword Tokens   :", len(subword_tokens))
 print("Character Tokens :", len(character_tokens))
 print("Byte Tokens      :", len(byte_tokens))
 
-
 # ============================================================
 # ANALYSIS
 # ============================================================
