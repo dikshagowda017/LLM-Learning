@@ -21,225 +21,237 @@
 
 
 import re
-
-# The tokenizers library is used for subword tokenization.
-# Install it using:
-# pip install tokenizers
-
-from tokenizers import Tokenizer
-from tokenizers.models import WordPiece
-from tokenizers.pre_tokenizers import Whitespace
-from tokenizers.trainers import WordPieceTrainer
-
-# ============================================================
-# TEXT DATASET
-# ============================================================
-# A small text dataset is used for demonstrating the different
-# tokenization techniques.
-
-text_dataset = [
-    "Large language models understand human language.",
-    "Tokenization is an important step in natural language processing.",
-    "Transformers use attention mechanisms to process text.",
-    "Language models learn patterns from large amounts of data."
-]
+from collections import Counter
 
 
-# Combine all sentences into one text
-text = " ".join(text_dataset)
+# ---------------------------------------------------------
+# Sample Text Dataset
+# ---------------------------------------------------------
 
-# ============================================================
-# 1. WORD TOKENIZATION
-# ============================================================
-# Word tokenization divides the text into complete words.
-#
-# Example:
-# "Hello world"
-#       ↓
-# ["Hello", "world"]
-#
-# Regular expressions are used to identify words and ignore
-# punctuation.
+text = """
+Module-1: Language AI, Language Representation: Bag-of-Words, Dense Vector Embeddings,
+Types of Embedding, Encoding and Decoding Context with Attention, Self-attention.
+Representational: Encoder-Only Model, Decoder-Only Models, LLM Training Paradigm and
+its Applications, Societal and Ethical Consideration.
+Token & Embeddings: Introduction, LLM Tokenization, Token to LLM, Word Versus Subword
+Versus Character Versus Byte Tokens, BPE, Tokenizer Properties.
+"""
+
+
+# ---------------------------------------------------------
+# 1. Word-Level Tokenization
+# ---------------------------------------------------------
 
 def word_tokenization(text):
-
-    # \b represents a word boundary
-    # \w+ represents one or more word characters
-    return re.findall(r'\b\w+\b', text)
+    # Extract words and punctuation separately
+    return re.findall(r"\w+|[^\w\s]", text, re.UNICODE)
 
 
-# Generate word tokens
-word_tokens = word_tokenization(text)
-
-
-# ============================================================
-# 2. CHARACTER TOKENIZATION
-# ============================================================
-# Character tokenization divides the text into individual
-# characters.
-#
-# Example:
-# "Hello"
-#    ↓
-# ['H', 'e', 'l', 'l', 'o']
-#
-# Spaces and punctuation are also treated as characters.
+# ---------------------------------------------------------
+# 2. Character-Level Tokenization
+# ---------------------------------------------------------
 
 def character_tokenization(text):
-
-    return list(text)
-
-
-# Generate character tokens
-character_tokens = character_tokenization(text)
+    # Remove spaces and tokenize each character
+    return [char for char in text if not char.isspace()]
 
 
-# ============================================================
-# 3. BYTE TOKENIZATION
-# ============================================================
-# Byte tokenization converts the text into bytes using UTF-8
-# encoding.
-#
-# Example:
-# "A"
-#  ↓
-# 65
-#
-# Each byte is represented as an integer from 0 to 255.
+# ---------------------------------------------------------
+# 3. Byte-Level Tokenization
+# ---------------------------------------------------------
 
 def byte_tokenization(text):
+    # Convert text into UTF-8 bytes
+    return list(text.encode("utf-8"))
 
-    return list(text.encode('utf-8'))
+
+# ---------------------------------------------------------
+# 4. Simple Subword-Level Tokenization using BPE
+# ---------------------------------------------------------
+
+def get_words(text):
+    return re.findall(r"\b[a-zA-Z]+\b", text.lower())
 
 
-# Generate byte tokens
+def build_bpe_vocab(text):
+    words = get_words(text)
+
+    # Represent each word as characters with </w> marking
+    # the end of a word
+    vocab = Counter()
+
+    for word in words:
+        chars = list(word) + ["</w>"]
+        vocab[tuple(chars)] += 1
+
+    return vocab
+
+
+def get_pair_counts(vocab):
+    pairs = Counter()
+
+    for word, frequency in vocab.items():
+        for i in range(len(word) - 1):
+            pairs[(word[i], word[i + 1])] += frequency
+
+    return pairs
+
+
+def merge_pair(pair, vocab):
+    new_vocab = Counter()
+
+    bigram = pair
+
+    for word, frequency in vocab.items():
+        new_word = []
+        i = 0
+
+        while i < len(word):
+
+            if (
+                i < len(word) - 1
+                and word[i] == bigram[0]
+                and word[i + 1] == bigram[1]
+            ):
+                new_word.append(word[i] + word[i + 1])
+                i += 2
+
+            else:
+                new_word.append(word[i])
+                i += 1
+
+        new_vocab[tuple(new_word)] += frequency
+
+    return new_vocab
+
+
+def train_bpe(text, num_merges=20):
+    vocab = build_bpe_vocab(text)
+    merges = []
+
+    for _ in range(num_merges):
+
+        pair_counts = get_pair_counts(vocab)
+
+        if not pair_counts:
+            break
+
+        best_pair = pair_counts.most_common(1)[0][0]
+
+        vocab = merge_pair(best_pair, vocab)
+        merges.append(best_pair)
+
+    return merges
+
+
+def apply_bpe_to_word(word, merges):
+    tokens = list(word.lower()) + ["</w>"]
+
+    for pair in merges:
+        new_tokens = []
+        i = 0
+
+        while i < len(tokens):
+
+            if (
+                i < len(tokens) - 1
+                and tokens[i] == pair[0]
+                and tokens[i + 1] == pair[1]
+            ):
+                new_tokens.append(tokens[i] + tokens[i + 1])
+                i += 2
+
+            else:
+                new_tokens.append(tokens[i])
+                i += 1
+
+        tokens = new_tokens
+
+    # Remove end-of-word marker
+    tokens = [token.replace("</w>", "") for token in tokens]
+
+    return [token for token in tokens if token]
+
+
+def subword_tokenization(text, merges):
+    words = get_words(text)
+
+    tokens = []
+
+    for word in words:
+        tokens.extend(apply_bpe_to_word(word, merges))
+
+    return tokens
+
+
+# ---------------------------------------------------------
+# Generate Tokens
+# ---------------------------------------------------------
+
+word_tokens = word_tokenization(text)
+
+character_tokens = character_tokenization(text)
+
 byte_tokens = byte_tokenization(text)
 
+# Train a small BPE tokenizer
+bpe_merges = train_bpe(text, num_merges=20)
 
-# ============================================================
-# 4. SUBWORD TOKENIZATION
-# ============================================================
-# Subword tokenization breaks words into smaller meaningful
-# pieces called subwords.
-#
-# It is useful for handling:
-# - Unknown words
-# - Rare words
-# - New words
-# - Different word forms
-#
-# WordPiece is one of the subword tokenization techniques
-# commonly associated with transformer-based language models.
-#
-# Example:
-# "unwanted"
-#       ↓
-# ["un", "##wanted"]
-#
-# The exact output depends on the vocabulary learned by the
-# tokenizer.
+subword_tokens = subword_tokenization(text, bpe_merges)
 
 
-def subword_tokenization(dataset):
+# ---------------------------------------------------------
+# Display Tokens
+# ---------------------------------------------------------
 
-    # Create a WordPiece tokenizer
-    tokenizer = Tokenizer(
-        WordPiece(unk_token="[UNK]")
-    )
+print("=" * 100)
+print("*** WORD TOKENIZATION ***")
+print("=" * 100)
 
-    # Split input text based on whitespace before applying
-    # WordPiece tokenization
-    tokenizer.pre_tokenizer = Whitespace()
-
-    # Create a trainer to learn the subword vocabulary
-    trainer = WordPieceTrainer(
-        vocab_size=100,
-        special_tokens=["[UNK]"]
-    )
-
-    # Train the tokenizer using the given dataset
-    tokenizer.train_from_iterator(
-        dataset,
-        trainer
-    )
-
-    # Encode the complete dataset
-    encoded = tokenizer.encode(
-        " ".join(dataset)
-    )
-
-    # Return the generated subword tokens
-    return encoded.tokens
-
-
-# Generate subword tokens
-subword_tokens = subword_tokenization(text_dataset)
-
-
-# ============================================================
-# DISPLAY TOKENIZATION RESULTS
-# ============================================================
-
-print("\n========== TOKENIZATION RESULTS ==========\n")
-
-
-# ---------------- WORD TOKENS ----------------
-
-print("WORD TOKENS:")
 print(word_tokens)
-
-print("\nNumber of Word Tokens:",
-      len(word_tokens))
+print("Number of tokens:", len(word_tokens))
 
 
-# ---------------- SUBWORD TOKENS ----------------
+print("\n" + "=" * 60)
+print("SUBWORD TOKENIZATION (BPE)")
+print("=" * 60)
 
-print("\nSUBWORD TOKENS:")
 print(subword_tokens)
-
-print("\nNumber of Subword Tokens:",
-      len(subword_tokens))
+print("Number of tokens:", len(subword_tokens))
 
 
-# ---------------- CHARACTER TOKENS ----------------
+print("\n" + "=" * 60)
+print("CHARACTER TOKENIZATION")
+print("=" * 60)
 
-print("\nCHARACTER TOKENS:")
 print(character_tokens)
-
-print("\nNumber of Character Tokens:",
-      len(character_tokens))
+print("Number of tokens:", len(character_tokens))
 
 
-# ---------------- BYTE TOKENS ----------------
+print("\n" + "=" * 60)
+print("BYTE TOKENIZATION")
+print("=" * 60)
 
-print("\nBYTE TOKENS:")
 print(byte_tokens)
-
-print("\nNumber of Byte Tokens:",
-      len(byte_tokens))
+print("Number of tokens:", len(byte_tokens))
 
 
-# ============================================================
-# TOKEN COUNT COMPARISON
-# ============================================================
-# The number of tokens generated by each technique is compared
-# below.
-#
-# Word tokenization usually produces fewer tokens because each
-# complete word is treated as one token.
-#
-# Character and byte tokenization generally produce more tokens
-# because text is divided into smaller units.
-#
-# Subword tokenization provides a balance between word-level
-# and character-level tokenization.
+# ---------------------------------------------------------
+# Comparison
+# ---------------------------------------------------------
 
-print("\n========== TOKEN COUNT COMPARISON ==========\n")
+print("\n" + "=" * 60)
+print("TOKENIZATION COMPARISON")
+print("=" * 60)
 
-print("Word Tokens      :", len(word_tokens))
-print("Subword Tokens   :", len(subword_tokens))
-print("Character Tokens :", len(character_tokens))
-print("Byte Tokens      :", len(byte_tokens))
+print("Word-level tokens     :", len(word_tokens))
+print("Subword-level tokens  :", len(subword_tokens))
+print("Character-level tokens:", len(character_tokens))
+print("Byte-level tokens     :", len(byte_tokens))
+
+print("\nBPE Merges Learned:")
+print(bpe_merges)
+
 
 # ============================================================
 # ANALYSIS
