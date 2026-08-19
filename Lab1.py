@@ -251,8 +251,6 @@ print("Byte-level tokens     :", len(byte_tokens))
 
 print("\nBPE Merges Learned:")
 print(bpe_merges)
-
-
 # ============================================================
 # ANALYSIS
 # ============================================================
